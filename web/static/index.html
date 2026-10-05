@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bindery — merge PDFs in order</title>
+<meta name="description" content="Bindery puts your PDFs, Word and PowerPoint files in order and binds them into one document. Free, no sign-up.">
+<meta name="theme-color" content="#161210">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bindery">
+<meta property="og:title" content="Bindery — merge PDFs in order">
+<meta property="og:description" content="Put your pages in order. Bindery binds PDFs, Word and PowerPoint files into one document.">
+<meta property="og:image" content="__SITE_URL__/cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Bindery — merge PDFs in order">
+<meta name="twitter:description" content="Put your pages in order. Bindery binds PDFs, Word and PowerPoint files into one document.">
+<meta name="twitter:image" content="__SITE_URL__/cover.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="brand">
+      <div class="seal" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="46" height="46">
+          <rect x="1" y="1" width="46" height="46" rx="11" fill="#c9973f"/>
+          <rect x="1" y="40" width="46" height="7" rx="3.5" fill="#7a5a24" opacity=".6"/>
+          <rect x="16" y="8" width="17" height="32" rx="2" fill="#fffdf8"/>
+          <polygon points="27,8 33,14 27,14" fill="#e6cfb4"/>
+          <rect x="19.5" y="21" width="10" height="2.4" rx="1.2" fill="#8a6420"/>
+          <rect x="19.5" y="26" width="10" height="2.4" rx="1.2" fill="#8a6420"/>
+          <rect x="19.5" y="31" width="6.2" height="2.4" rx="1.2" fill="#cbbfa5"/>
+        </svg>
+      </div>
+      <div>
+        <p class="wordmark">Bindery</p>
+        <p class="tagline">Put your pages in order. We bind them into one document.</p>
+      </div>
+    </div>
+    <ol class="steps" aria-label="How it works">
+      <li class="step" data-n="1"><span class="n">1</span><span class="t">Add files</span></li>
+      <li class="step" data-n="2"><span class="n">2</span><span class="t">Arrange</span></li>
+      <li class="step" data-n="3"><span class="n">3</span><span class="t">Bind &amp; download</span></li>
+    </ol>
+  </header>
+
+  <main class="grid">
+    <!-- LEFT: the queue -->
+    <section class="card queue" aria-label="Document queue">
+      <div class="card-head">
+        <h2>Queue</h2>
+        <span class="rule-note">top first</span>
+      </div>
+      <div class="toolbar">
+        <label class="btn ghost" for="fileInput">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add files
+        </label>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.pptx,.ppt,.odt,.odp,.rtf,.txt" multiple hidden>
+        <button class="btn quiet" id="clearBtn" type="button">Clear</button>
+      </div>
+      <p class="hint">Drag a row to reorder it — the rest glide out of the way. New files land at the end. PDF, Word and PowerPoint all welcome.</p>
+
+      <div id="fileList" class="file-list" aria-label="PDF files in merge order"></div>
+      <div id="emptyState" class="empty-state">
+        <svg class="illus" viewBox="0 0 120 92" width="104" height="80" aria-hidden="true">
+          <rect x="14" y="18" width="72" height="62" rx="6" fill="#ECE5D4"/>
+          <rect x="26" y="10" width="72" height="62" rx="6" fill="#F8F4E9" stroke="#D8CFB9"/>
+          <rect x="38" y="22" width="8" height="26" rx="2" fill="#BC4B24" opacity=".85"/>
+          <rect x="50" y="22" width="30" height="5" rx="2.5" fill="#D8CFB9"/>
+          <rect x="50" y="32" width="30" height="5" rx="2.5" fill="#D8CFB9"/>
+          <rect x="50" y="42" width="20" height="5" rx="2.5" fill="#D8CFB9"/>
+        </svg>
+        <p><strong>Your queue is empty.</strong><br>Add files (PDF, Word, PowerPoint) — or drop them anywhere on this page.</p>
+      </div>
+
+      <div id="result" class="ticket" hidden></div>
+    </section>
+
+    <!-- RIGHT: preview -->
+    <section class="card" aria-label="Preview">
+      <div class="card-head">
+        <h2>Preview</h2>
+        <span class="rule-note">exactly what the bound file holds</span>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="sel" type="button" role="tab">Selected file</button>
+        <button class="tab" data-tab="merged" type="button" role="tab">Bound preview</button>
+      </div>
+
+      <div class="tabpage" id="tab-sel" role="tabpanel">
+        <h3 id="selTitle" class="sel-title">Nothing selected</h3>
+        <p id="selMeta" class="sel-meta"></p>
+        <div class="sel-hero" id="selHero">Click a file in the queue to inspect its pages.</div>
+        <div id="selPager"></div>
+        <p class="hint">Pages — click one to view it large:</p>
+        <div class="strip" id="selStrip"></div>
+      </div>
+
+      <div class="tabpage" id="tab-merged" role="tabpanel" hidden>
+        <p id="mergedSummary" class="sel-meta"></p>
+        <div id="mergedSections" class="merged-sections"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="actionbar" role="region" aria-label="Bind controls">
+    <div class="loadbar" id="progress" hidden><span></span></div>
+    <label class="out">
+      <span>File name</span>
+      <input id="outName" type="text" value="merged_document.pdf" spellcheck="false" autocomplete="off">
+    </label>
+    <p class="totals" id="totals">0 files · 0 pages</p>
+    <button class="btn bind" id="mergeBtn" type="button" disabled>
+      <span id="mergeLabel">Bind PDF</span>
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h10m0 0L9.5 5m3 3L9.5 11"/></svg>
+    </button>
+  </div>
+
+  <footer class="foot">
+    Files live on this server only until they expire — nothing is shared.
+    For sensitive documents, use the offline desktop app instead.
+  </footer>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<div id="lightbox" class="lightbox" hidden role="dialog" aria-modal="true" aria-label="Page fullscreen view">
+  <button class="lb-close" id="lbClose" type="button" aria-label="Close fullscreen">✕</button>
+  <button class="lb-nav" id="lbPrev" type="button" aria-label="Previous page">‹</button>
+  <figure>
+    <img id="lbImg" alt="">
+    <figcaption id="lbCap"></figcaption>
+  </figure>
+  <button class="lb-nav" id="lbNext" type="button" aria-label="Next page">›</button>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

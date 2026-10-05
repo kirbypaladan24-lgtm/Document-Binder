@@ -1,0 +1,16 @@
+# One-click deploy on Render (https://render.com) using the Dockerfile.
+services:
+  - type: web
+    name: pdf-merger
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: SESSION_TTL_HOURS
+        value: 6
+      - key: MAX_FILES
+        value: 30
+      - key: MAX_FILE_MB
+        value: 100
+      - key: SESSION_MAX_MB
+        value: 500
