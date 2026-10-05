@@ -126,3 +126,21 @@ def test_session_reports_real_limits():
     assert j["ok"] and j["session_id"]
     assert j["limits"] == {"max_file_mb": 50, "max_files": 30,
                            "session_max_mb": 200}
+
+
+def test_final_preview_renders_merged_pages():
+    sid = _session()
+    j = _upload(sid, [(_pdf_bytes(2), "A.pdf"), (_pdf_bytes(1), "B.pdf")])
+    ids = [f["id"] for f in j["added"]]
+    m = client.post("/api/merge",
+                    json={"session_id": sid, "order": ids}).get_json()
+    assert m["ok"] and m["token"] and m["pages"] == 3
+    for p in range(3):
+        r = client.get(f"/api/preview?session_id={sid}"
+                       f"&token={m['token']}&page={p}")
+        assert r.status_code == 200, p
+        assert r.headers["Content-Type"].startswith("image/png"), p
+    assert client.get(f"/api/preview?session_id={sid}"
+                      f"&token={m['token']}&page=9").status_code == 404
+    assert client.get(f"/api/preview?session_id={sid}"
+                      f"&token={'0' * 32}&page=0").status_code == 404

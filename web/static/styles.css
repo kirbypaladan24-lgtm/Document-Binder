@@ -158,6 +158,10 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   background: var(--brass); color: #1c1408; font-weight: 700; text-decoration: none;
   border-radius: 11px; padding: 10px 18px; font-size: 13.5px; }
 .ticket .dl:hover { background: #d9ab55; }
+.ticket .dl.ghostbtn { background: transparent; color: var(--brass);
+  border: 1px solid var(--brass-deep); margin-left: 8px; cursor: pointer;
+  font-family: var(--sans); font-size: 13.5px; }
+.ticket .dl.ghostbtn:hover { background: var(--brass-wash); }
 .ticket .fine { color: var(--muted); font-size: 11.5px; margin: 8px 0 0; }
 
 /* ---------- preview ---------- */
@@ -188,7 +192,13 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   font-weight: 800; cursor: pointer; }
 .pager .pbtn:hover:not(:disabled) { background: var(--brass); border-color: var(--brass); color: #1c1408; }
 .pager .pbtn:disabled { opacity: .3; cursor: default; }
-.strip { display: flex; gap: 10px; flex-wrap: wrap; }
+.strip { display: flex; gap: 10px; flex-wrap: wrap; max-height: 320px;
+  overflow-y: auto; padding: 2px 6px 6px 2px; scrollbar-color: #4d3f22 transparent; }
+.strip::-webkit-scrollbar { width: 10px; }
+.strip::-webkit-scrollbar-thumb { background: #3a3122; border-radius: 6px; }
+.strip figure { margin: 0; text-align: center; }
+.strip figcaption { font-size: 10px; color: var(--muted); margin-top: 2px;
+  font-variant-numeric: tabular-nums; }
 .strip img { width: 104px; border-radius: 7px; background: #fff; padding: 4px;
   cursor: pointer; border: 2px solid #3a3226;
   transition: transform .15s ease, border-color .15s ease; }

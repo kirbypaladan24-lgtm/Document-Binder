@@ -4,7 +4,8 @@
 "use strict";
 
 const state = { session: null, files: [], selectedId: null, selPage: 0, merged: false,
-                limits: { max_file_mb: 50, max_files: 30, session_max_mb: 200 } };
+                limits: { max_file_mb: 50, max_files: 30, session_max_mb: 200 },
+                finalView: null };
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("fileList"), emptyEl = $("emptyState");
@@ -364,9 +365,9 @@ function renderSelected() {
   if (prev) prev.onclick = () => stepPage(-1);
   if (next) next.onclick = () => stepPage(+1);
   const strip = $("selStrip");
-  strip.innerHTML = Array.from({ length: Math.min(f.pages, 4) }, (_, p) =>
-    `<img loading="lazy" src="${thumb(f.id, p, 0.7)}" alt="Page ${p + 1}" data-p="${p}"` +
-    (p === page ? ` class="active"` : "") + `>`).join("");
+  strip.innerHTML = Array.from({ length: f.pages }, (_, p) =>
+    `<figure><img loading="lazy" src="${thumb(f.id, p, 0.7)}" alt="Page ${p + 1}" data-p="${p}"` +
+    (p === page ? ` class="active"` : "") + `><figcaption>p. ${p + 1}</figcaption></figure>`).join("");
   strip.querySelectorAll("img").forEach((img) => {
     img.onclick = () => { state.selPage = +img.dataset.p; renderSelected(); };
   });
@@ -395,15 +396,12 @@ function renderMerged() {
   box.innerHTML = state.files.map((f, i) => {
     const start = run + 1;
     run += f.pages;
-    const shown = Math.min(f.pages, 3);
-    const thumbs = Array.from({ length: shown }, (_, p) =>
+    const thumbs = Array.from({ length: f.pages }, (_, p) =>
       `<figure><img loading="lazy" src="${thumb(f.id, p, 0.7)}" alt="">` +
       `<figcaption>p. ${start + p}</figcaption></figure>`).join("");
-    const more = f.pages > shown
-      ? `<span class="more">+${f.pages - shown} more, through p. ${run}</span>` : "";
     return `<div class="msec"><div class="head"><span class="badge">${i + 1}</span>` +
       `<span class="t">${esc(f.name)}<small>becomes pages ${start}–${run} · ${f.pages} pages</small></span></div>` +
-      `<div class="thumbs">${thumbs}${more}</div></div>` +
+      `<div class="thumbs">${thumbs}</div></div>` +
       (i < state.files.length - 1 ? `<div class="marrow">then</div>` : "");
   }).join("");
 }
@@ -416,6 +414,7 @@ function setBusy(b) {
 }
 function hideResult() {
   state.merged = false;
+  state.finalView = null;
   $("result").hidden = true;
   $("result").innerHTML = "";
   setStep();
@@ -444,10 +443,13 @@ async function doMerge() {
       `<h3>${j.files} files, ${j.pages} pages — in your order</h3></div>` +
       `<table>${rows}</table>` +
       `<p class="fine">Checked: output pages equal the sum of the inputs, sequence untouched.</p>` +
-      `<a class="dl" href="${j.download_url}" download="${esc(j.filename)}">${I.dl} Download ${esc(j.filename)}</a>`;
+      `<a class="dl" href="${j.download_url}" download="${esc(j.filename)}">${I.dl} Download ${esc(j.filename)}</a>` +
+      `<button class="dl ghostbtn" id="previewFinal" type="button">Preview the final document</button>`;
     box.hidden = false;
     state.merged = true;
+    state.finalView = { token: j.token, pages: j.pages };
     setStep();
+    $("previewFinal").onclick = openFinalPreview;
     toast(`Bound ${j.files} files into ${j.pages} pages.`);
   } catch (err) {
     if (!err.recovered) toast(String(err.message || err), true);
@@ -456,9 +458,17 @@ async function doMerge() {
   }
 }
 
-/* ---------------- fullscreen lightbox ---------------- */
+/* ---------------- fullscreen lightbox (file page OR final document) ---------------- */
 function openLightbox() {
   if (!currentFile()) return;
+  state.finalView = null; // hero views always show the selected file's page
+  $("lightbox").hidden = false;
+  document.body.style.overflow = "hidden";
+  renderLightbox();
+}
+function openFinalPreview() {
+  if (!state.finalView) return;
+  state.finalPage = 0;
   $("lightbox").hidden = false;
   document.body.style.overflow = "hidden";
   renderLightbox();
@@ -467,7 +477,28 @@ function closeLightbox() {
   $("lightbox").hidden = true;
   document.body.style.overflow = "";
 }
+function lbStep(d) {
+  // one navigator for both modes; hero pager stays in sync in file mode
+  if (state.finalView) {
+    state.finalPage = Math.min(state.finalView.pages - 1,
+      Math.max(0, (state.finalPage || 0) + d));
+  } else {
+    stepPage(d);
+  }
+  renderLightbox();
+}
 function renderLightbox() {
+  if (state.finalView) {
+    // rendered from the ACTUAL generated file — exactly what download holds
+    const p = state.finalPage || 0;
+    const img = $("lbImg");
+    img.src = `/api/preview?session_id=${state.session}&token=${state.finalView.token}&page=${p}&zoom=2.0`;
+    img.alt = `Final document, page ${p + 1}`;
+    $("lbCap").textContent = `Final document — page ${p + 1} of ${state.finalView.pages}`;
+    $("lbPrev").disabled = p === 0;
+    $("lbNext").disabled = p === state.finalView.pages - 1;
+    return;
+  }
   const f = currentFile();
   if (!f) return closeLightbox();
   const img = $("lbImg");
@@ -479,16 +510,16 @@ function renderLightbox() {
 }
 function wireLightbox() {
   $("lbClose").onclick = closeLightbox;
-  $("lbPrev").onclick = () => { stepPage(-1); renderLightbox(); };
-  $("lbNext").onclick = () => { stepPage(+1); renderLightbox(); };
+  $("lbPrev").onclick = () => lbStep(-1);
+  $("lbNext").onclick = () => lbStep(+1);
   $("lightbox").addEventListener("click", (e) => {
     if (e.target === $("lightbox")) closeLightbox();
   });
   document.addEventListener("keydown", (e) => {
     if ($("lightbox").hidden) return;
     if (e.key === "Escape") closeLightbox();
-    else if (e.key === "ArrowLeft") { stepPage(-1); renderLightbox(); }
-    else if (e.key === "ArrowRight") { stepPage(+1); renderLightbox(); }
+    else if (e.key === "ArrowLeft") lbStep(-1);
+    else if (e.key === "ArrowRight") lbStep(+1);
   });
 }
 

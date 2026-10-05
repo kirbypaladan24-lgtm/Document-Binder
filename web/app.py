@@ -241,7 +241,7 @@ def api_merge():
     page_map = [{"position": p, "name": n, "start": a, "end": b}
                 for p, n, a, b in res.page_map]
     return jsonify(ok=True, pages=res.total_pages, files=len(items),
-                   filename=display, page_map=page_map,
+                   filename=display, page_map=page_map, token=token,
                    download_url=f"/api/download?session_id={sid}&token={token}")
 
 
@@ -273,8 +273,15 @@ def api_download():
 def api_preview():
     try:
         sid = request.args.get("session_id", "")
-        fid = request.args.get("file_id", "")
-        path = session_store.file_path(sid, fid)
+        token = request.args.get("token", "")
+        if token:
+            # render a page of the GENERATED merged file (final preview)
+            sdir = session_store.session_dir(sid)
+            session_store._check_id(token, "token")
+            path = os.path.join(sdir, f"merged_{token}.pdf")
+        else:
+            fid = request.args.get("file_id", "")
+            path = session_store.file_path(sid, fid)
     except ValueError as exc:
         return jsonify(ok=False, error=str(exc)), 400
     try:
