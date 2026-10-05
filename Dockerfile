@@ -22,4 +22,4 @@ ENV PORT=8000 \
 VOLUME /data
 EXPOSE 8000
 
-CMD ["gunicorn", "web.app:app", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "300"]
+CMD ["gunicorn", "web.app:app", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "--timeout", "300"]

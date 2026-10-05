@@ -104,7 +104,7 @@ then run with `-p 8000:8000 -v pdfdata:/data`.
 `pip install -r requirements-web.txt`, then the Procfile's
 `gunicorn web.app:app` command.
 
-**VPS:** `gunicorn web.app:app --bind 0.0.0.0:8000 --workers 2 --timeout 300`
+**VPS:** `gunicorn web.app:app --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 300`
 behind nginx/Caddy for HTTPS.
 
 ## Limits & privacy (env vars)
@@ -112,12 +112,25 @@ behind nginx/Caddy for HTTPS.
 | Var | Default | Meaning |
 |---|---|---|
 | `MAX_FILES` | 30 | files per session |
-| `MAX_FILE_MB` | 100 | per-file size cap |
-| `SESSION_MAX_MB` | 500 | total quota per session |
+| `MAX_FILE_MB` | 50 | per-file size cap (sized for 512MB free boxes) |
+| `SESSION_MAX_MB` | 200 | total quota per session |
 | `SESSION_TTL_HOURS` | 6 | uploads auto-deleted after this |
 | `WEB_DATA_DIR` | `web/data` | where temp sessions live |
 | `PORT` | 8000 | listen port |
 | `SITE_URL` | (empty) | production URL, e.g. `https://your-app.onrender.com` — makes link previews (tab icon, social cards) use absolute image URLs |
+
+### Free-tier realities (read this before blaming the app)
+
+- **Sessions evaporate on sleep/restart/redeploy.** Free hosts wipe temp
+  storage, so an open page can lose its uploads mid-use. The frontend
+  detects this, grabs a fresh session, and asks you to re-add files —
+  no manual reload needed. Need persistence? Attach a paid disk and point
+  `WEB_DATA_DIR` at it.
+- **First visit after idle wakes slowly.** The app retries automatically
+  (“Waking the server…”) for ~a minute before giving up.
+- **Conversions run one at a time** with a single server worker, keeping
+  memory inside 512MB. Big files beyond the caps above are rejected with
+  a plain message, not a crash.
 
 Brand assets live in `web/static/`: `favicon.svg`, `favicon.png`,
 `apple-touch-icon.png`, `cover.png` (social preview).

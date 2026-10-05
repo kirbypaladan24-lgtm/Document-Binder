@@ -11,6 +11,6 @@ services:
       - key: MAX_FILES
         value: 30
       - key: MAX_FILE_MB
-        value: 100
+        value: 50
       - key: SESSION_MAX_MB
-        value: 500
+        value: 200

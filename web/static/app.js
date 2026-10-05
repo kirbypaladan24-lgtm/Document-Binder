@@ -35,6 +35,57 @@ function toast(msg, err = false) {
   setTimeout(() => t.remove(), 5200);
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Free-tier servers sleep and temp files die on restarts: retry the
+// wake-up window, and heal a lost session instead of erroring out.
+const WAKE_DELAYS = [2000, 5000, 10000, 20000, 30000];
+const isSessionGone = (j) =>
+  !!j && j.ok === false && /session expired|unknown/i.test(j.error || "");
+
+async function req(url, opts = {}) {
+  let woke = false;
+  for (let attempt = 0; ; attempt++) {
+    let r;
+    try {
+      r = await fetch(url, opts);
+    } catch {
+      if (attempt >= WAKE_DELAYS.length)
+        throw new Error("Can't reach the server. It may be waking up — wait a minute and try again.");
+      if (!woke) { woke = true; toast("Waking the server, one moment…"); }
+      await sleep(WAKE_DELAYS[attempt]);
+      continue;
+    }
+    if ((r.status === 502 || r.status === 503 || r.status === 504) && attempt < WAKE_DELAYS.length) {
+      if (!woke) { woke = true; toast("Waking the server, one moment…"); }
+      await sleep(WAKE_DELAYS[attempt]);
+      continue;
+    }
+    if (r.status === 413) throw new Error("Those files are too large for this server.");
+    let j = null;
+    try { j = await r.json(); } catch { /* non-JSON body */ }
+    if (isSessionGone(j)) {
+      await recoverSession();
+      const e = new Error("__recovered__");
+      e.recovered = true;
+      throw e;
+    }
+    if (!r.ok) throw new Error((j && j.error) || `Request failed (${r.status}).`);
+    return j;
+  }
+}
+
+async function recoverSession() {
+  // Server restarted / slept: temp uploads are gone for good. Grab a
+  // fresh session, clear the (now phantom) list, and say so plainly.
+  try {
+    const j = await (await fetch("/api/session", { method: "POST" })).json();
+    state.session = j.session_id;
+  } catch { /* next call will retry/recover again */ }
+  state.files = []; state.selectedId = null; state.selPage = 0;
+  refreshAll();
+  toast("The server restarted and lost your uploads — please add your files again.");
+}
+
 function setStep() {
   const s = state.files.length ? (state.merged ? 3 : 2) : 1;
   document.querySelectorAll(".step").forEach((el) => {
@@ -47,11 +98,9 @@ function setStep() {
 /* ---------------- session + upload ---------------- */
 async function init() {
   try {
-    const r = await fetch("/api/session", { method: "POST" });
-    const j = await r.json();
-    state.session = j.session_id;
-  } catch {
-    toast("Could not reach the server. Is it running?", true);
+    state.session = (await req("/api/session", { method: "POST" })).session_id;
+  } catch (err) {
+    if (!err.recovered) toast("Could not reach the server. Is it running?", true);
   }
   wireTabs();
   wireLightbox();
@@ -78,8 +127,7 @@ async function uploadFiles(fileList) {
   pdfs.forEach((f) => fd.append("files", f, f.name));
   setBusy(true);
   try {
-    const r = await fetch("/api/upload", { method: "POST", body: fd });
-    const j = await r.json();
+    const j = await req("/api/upload", { method: "POST", body: fd });
     if (!j.ok) throw new Error(j.error || "Upload failed.");
     (j.added || []).forEach((f) => state.files.push(f));
     (j.rejected || []).forEach((x) => toast(`${x.name} skipped: ${x.reason}`, true));
@@ -88,7 +136,7 @@ async function uploadFiles(fileList) {
       toast(`${j.added.length} file${j.added.length === 1 ? "" : "s"} added to the end — drag to reorder.`);
     }
   } catch (err) {
-    toast(String(err.message || err), true);
+    if (!err.recovered) toast(String(err.message || err), true);
   } finally {
     setBusy(false);
     refreshAll();
@@ -100,8 +148,11 @@ async function clearAll() {
   if (!confirm(`Remove all ${state.files.length} files from the queue?`)) return;
   try { await fetch(`/api/session/${state.session}`, { method: "DELETE" }); } catch { /* ignore */ }
   state.files = []; state.selectedId = null; state.selPage = 0;
-  const r = await fetch("/api/session", { method: "POST" }).then((x) => x.json());
-  state.session = r.session_id;
+  try {
+    state.session = (await req("/api/session", { method: "POST" })).session_id;
+  } catch (err) {
+    if (!err.recovered) toast(String(err.message || err), true);
+  }
   refreshAll();
 }
 
@@ -353,7 +404,7 @@ async function doMerge() {
   setBusy(true);
   hideResult();
   try {
-    const r = await fetch("/api/merge", {
+    const j = await req("/api/merge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -362,7 +413,6 @@ async function doMerge() {
         filename: $("outName").value.trim() || "merged_document.pdf",
       }),
     });
-    const j = await r.json();
     if (!j.ok) throw new Error(j.error || "Merge failed.");
     const rows = j.page_map.map((m) =>
       `<tr><td>No. ${m.position}</td><td>${esc(m.name)}</td><td>pages ${m.start}–${m.end}</td></tr>`).join("");
@@ -378,7 +428,7 @@ async function doMerge() {
     setStep();
     toast(`Bound ${j.files} files into ${j.pages} pages.`);
   } catch (err) {
-    toast(String(err.message || err), true);
+    if (!err.recovered) toast(String(err.message || err), true);
   } finally {
     setBusy(false);
   }

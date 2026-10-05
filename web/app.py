@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import os
 import sys
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -30,10 +31,17 @@ from src.validator import probe_pdf
 from web import session_store
 
 # ---- tunable limits (env-overridable for hosting plans) ----
+# Defaults are sized for small free-tier boxes (512MB RAM): one big
+# LibreOffice conversion can spike hundreds of MB, so quotas stay
+# modest unless you raise them via env vars.
 MAX_FILES = int(os.environ.get("MAX_FILES", "30"))
-MAX_FILE_MB = int(os.environ.get("MAX_FILE_MB", "100"))
-SESSION_MAX_MB = int(os.environ.get("SESSION_MAX_MB", "500"))
+MAX_FILE_MB = int(os.environ.get("MAX_FILE_MB", "50"))
+SESSION_MAX_MB = int(os.environ.get("SESSION_MAX_MB", "200"))
 SESSION_TTL_HOURS = float(os.environ.get("SESSION_TTL_HOURS", "6"))
+
+# LibreOffice conversions are the memory spike: never run two at once
+# in this process, no matter how many threads serve requests.
+_CONVERT_LOCK = threading.Lock()
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = (SESSION_MAX_MB + 50) * 1024 * 1024
@@ -113,7 +121,8 @@ def api_upload():
         converted = None
         dest = os.path.join(sdir, fid + ".pdf")
         if office:
-            ok, reason = office_convert.convert_to_pdf(raw, dest)
+            with _CONVERT_LOCK:
+                ok, reason = office_convert.convert_to_pdf(raw, dest)
             try:
                 os.remove(raw)
             except OSError:
