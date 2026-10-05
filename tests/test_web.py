@@ -114,6 +114,13 @@ def test_branding_tab_and_search_assets():
     assert "<svg" in client.get("/favicon.svg").get_data(as_text=True)
 
 
+def test_google_site_verification_file():
+    r = client.get("/google3412e4afd34f3ead.html")
+    assert r.status_code == 200
+    assert r.get_data(as_text=True).strip() == \
+        "google-site-verification: google3412e4afd34f3ead.html"
+
+
 def test_session_reports_real_limits():
     j = client.post("/api/session").get_json()
     assert j["ok"] and j["session_id"]
