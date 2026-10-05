@@ -75,7 +75,10 @@ def api_diag():
 @app.post("/api/session")
 def api_session():
     sid = session_store.new_session(SESSION_TTL_HOURS)
-    return jsonify(ok=True, session_id=sid)
+    return jsonify(ok=True, session_id=sid,
+                   limits={"max_file_mb": MAX_FILE_MB,
+                           "max_files": MAX_FILES,
+                           "session_max_mb": SESSION_MAX_MB})
 
 
 @app.delete("/api/session/<sid>")

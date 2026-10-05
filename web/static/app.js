@@ -3,7 +3,8 @@
    rows glide live while a floating ghost follows the cursor. */
 "use strict";
 
-const state = { session: null, files: [], selectedId: null, selPage: 0, merged: false };
+const state = { session: null, files: [], selectedId: null, selPage: 0, merged: false,
+                limits: { max_file_mb: 50, max_files: 30, session_max_mb: 200 } };
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("fileList"), emptyEl = $("emptyState");
@@ -80,6 +81,7 @@ async function recoverSession() {
   try {
     const j = await (await fetch("/api/session", { method: "POST" })).json();
     state.session = j.session_id;
+    if (j.limits) { state.limits = j.limits; renderLimits(); }
   } catch { /* next call will retry/recover again */ }
   state.files = []; state.selectedId = null; state.selPage = 0;
   refreshAll();
@@ -98,7 +100,10 @@ function setStep() {
 /* ---------------- session + upload ---------------- */
 async function init() {
   try {
-    state.session = (await req("/api/session", { method: "POST" })).session_id;
+    const s = await req("/api/session", { method: "POST" });
+    state.session = s.session_id;
+    if (s.limits) state.limits = s.limits;
+    renderLimits();
   } catch (err) {
     if (!err.recovered) toast("Could not reach the server. Is it running?", true);
   }
@@ -118,13 +123,28 @@ async function init() {
   refreshAll();
 }
 
+function renderLimits() {
+  const el = $("limitsNote");
+  const { max_file_mb, max_files } = state.limits;
+  el.innerHTML = `Heads-up: max <b>${max_file_mb} MB</b> per file · up to <b>${max_files}</b> files per batch.`;
+  el.hidden = false;
+}
+
 async function uploadFiles(fileList) {
   if (!state.session) return toast("No session yet — reload the page.", true);
   const pdfs = [...fileList].filter((f) => /\.(pdf|docx?|pptx?|odt|odp|rtf|txt)$/i.test(f.name));
   if (!pdfs.length) return toast("Only PDF, Word or PowerPoint files, please.", true);
+  // instant client-side size gate — no waiting for a doomed upload
+  const cap = state.limits.max_file_mb * 1048576;
+  const okFiles = [];
+  pdfs.forEach((f) => {
+    if (f.size > cap) toast(`${f.name} skipped: ${fmtSize(f.size)} is over the ${state.limits.max_file_mb} MB per-file limit.`, true);
+    else okFiles.push(f);
+  });
+  if (!okFiles.length) return;
   const fd = new FormData();
   fd.append("session_id", state.session);
-  pdfs.forEach((f) => fd.append("files", f, f.name));
+  okFiles.forEach((f) => fd.append("files", f, f.name));
   setBusy(true);
   try {
     const j = await req("/api/upload", { method: "POST", body: fd });
@@ -149,7 +169,9 @@ async function clearAll() {
   try { await fetch(`/api/session/${state.session}`, { method: "DELETE" }); } catch { /* ignore */ }
   state.files = []; state.selectedId = null; state.selPage = 0;
   try {
-    state.session = (await req("/api/session", { method: "POST" })).session_id;
+    const s = await req("/api/session", { method: "POST" });
+    state.session = s.session_id;
+    if (s.limits) { state.limits = s.limits; renderLimits(); }
   } catch (err) {
     if (!err.recovered) toast(String(err.message || err), true);
   }

@@ -73,7 +73,11 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   font-size: 21px; font-weight: 400; color: var(--ink); }
 .rule-note { color: var(--muted); font-size: 11.5px; font-style: italic; font-family: var(--serif); }
 .toolbar { display: flex; gap: 8px; margin-bottom: 6px; }
-.hint { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.hint { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+.limits { font-size: 11.5px; color: var(--muted); margin: 0 0 12px;
+  padding-left: 9px; border-left: 2px solid var(--brass-deep); }
+.limits[hidden] { display: none; }
+.limits b { color: var(--brass); font-weight: 700; }
 
 /* ---------- buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: 7px;

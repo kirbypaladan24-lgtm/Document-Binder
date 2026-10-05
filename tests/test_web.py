@@ -95,6 +95,7 @@ def test_rejections_and_bad_ids():
 
 
 def test_branding_tab_and_search_assets():
+
     html = client.get("/").get_data(as_text=True)
     assert "__SITE_URL__" not in html  # placeholder always injected
     for marker in ('rel="icon" type="image/svg+xml"',
@@ -111,3 +112,10 @@ def test_branding_tab_and_search_assets():
         assert r.headers["Content-Type"].startswith(ctype), path
     assert client.get("/cover.png").data[:8] == b"\x89PNG\r\n\x1a\n"
     assert "<svg" in client.get("/favicon.svg").get_data(as_text=True)
+
+
+def test_session_reports_real_limits():
+    j = client.post("/api/session").get_json()
+    assert j["ok"] and j["session_id"]
+    assert j["limits"] == {"max_file_mb": 50, "max_files": 30,
+                           "session_max_mb": 200}
