@@ -56,6 +56,13 @@ def health():
     return jsonify(ok=True)
 
 
+@app.get("/api/diag")
+def api_diag():
+    """Deploy check: is LibreOffice actually present in this image?"""
+    return jsonify(ok=True, libreoffice=office_convert.available(),
+                   soffice=office_convert.find_soffice())
+
+
 # ---------------- sessions / files ----------------
 @app.post("/api/session")
 def api_session():

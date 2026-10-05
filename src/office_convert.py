@@ -66,8 +66,12 @@ def convert_to_pdf(src_path: str, dest_pdf: str,
                    timeout: int = CONVERT_TIMEOUT) -> tuple[bool, str]:
     """Convert an office document to PDF.
 
+    Uses the most compatible invocation: plain `--headless --convert-to`
+    with a fresh HOME per call (LibreOffice keeps its profile under HOME,
+    so this also isolates parallel conversions — no profile-lock fights).
+
     Returns (True, "") on success with dest_pdf written, else
-    (False, human-readable reason).
+    (False, human-readable reason). Full output goes to server logs.
     """
     soffice = find_soffice()
     if not soffice:
@@ -76,20 +80,24 @@ def convert_to_pdf(src_path: str, dest_pdf: str,
     if not os.path.exists(src_path):
         return False, "File is missing."
     tmpdir = tempfile.mkdtemp(prefix="lo_convert_")
-    profile = tempfile.mkdtemp(prefix="lo_profile_")
+    home = tempfile.mkdtemp(prefix="lo_home_")
     try:
-        profile_uri = _path_uri(profile)
-        cmd = [soffice, "--headless", "--nolockcheck", "--nodefault",
-               "--nologo", "--norestore",
-               f"--env:UserInstallation={profile_uri}",
+        cmd = [soffice, "--headless", "--nolockcheck",
                "--convert-to", "pdf", "--outdir", tmpdir, src_path]
+        env = dict(os.environ, HOME=home)
         proc = subprocess.run(cmd, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, timeout=timeout)
+                              stderr=subprocess.STDOUT, timeout=timeout,
+                              env=env)
         stem = os.path.splitext(os.path.basename(src_path))[0]
         made = os.path.join(tmpdir, stem + ".pdf")
+        log = (proc.stdout or b"").decode("utf-8", "replace")
         if proc.returncode != 0 or not os.path.exists(made):
-            log = (proc.stdout or b"").decode("utf-8", "replace")[-600:]
-            return False, f"Could not convert this file to PDF. {log}".strip()
+            print(f"[office] convert failed rc={proc.returncode} "
+                  f"src={os.path.basename(src_path)}\n{log[-2000:]}",
+                  flush=True)
+            tail = "\n".join(log.strip().splitlines()[-6:])
+            detail = f" (code {proc.returncode})" + (f"\n{tail}" if tail else "")
+            return False, "Could not convert this file to PDF." + detail
         os.makedirs(os.path.dirname(os.path.abspath(dest_pdf)) or ".",
                     exist_ok=True)
         if os.path.exists(dest_pdf):
@@ -102,12 +110,7 @@ def convert_to_pdf(src_path: str, dest_pdf: str,
         return False, f"Conversion failed ({exc})."
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
-        shutil.rmtree(profile, ignore_errors=True)
-
-
-def _path_uri(path: str) -> str:
-    import pathlib
-    return pathlib.Path(os.path.abspath(path)).as_uri()
+        shutil.rmtree(home, ignore_errors=True)
 
 
 def convert_label(ext: str) -> str:
