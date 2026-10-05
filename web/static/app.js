@@ -225,24 +225,39 @@ function renderList() {
   $("mergeBtn").disabled = !state.files.length;
 }
 
-/* Lively pointer drag-sort with FLIP glide */
+/* Lively pointer drag-sort with FLIP glide.
+   Tap (press + release, no drag) selects from anywhere on the card.
+   Dragging starts anywhere with a mouse, but only from the grip on
+   touch — otherwise the page could never scroll. */
 let drag = null;
 function onCardPress(e) {
   if (e.button !== 0 && e.pointerType === "mouse") return;
   if (e.target.closest("button")) return;
-  // touch scrolls from anywhere except the grip; mouse drags from anywhere
-  if (e.pointerType !== "mouse" && !e.target.closest(".grip")) return;
   const card = e.currentTarget;
-  selectFile(card.dataset.id);
-  drag = { card, x0: e.clientX, y0: e.clientY, live: false, gap: null };
+  drag = { card, x0: e.clientX, y0: e.clientY, live: false, gap: null,
+           canDrag: e.pointerType === "mouse" || !!e.target.closest(".grip") };
   card.addEventListener("pointermove", onCardMove);
   card.addEventListener("pointerup", onCardDrop, { once: true });
-  card.addEventListener("pointercancel", onCardDrop, { once: true });
+  card.addEventListener("pointercancel", onCardCancel, { once: true });
+}
+
+function onCardCancel() {
+  // e.g. the browser took over for scrolling: select/settle nothing
+  const d = drag;
+  drag = null;
+  document.body.style.cursor = "";
+  if (!d) return;
+  d.card.removeEventListener("pointermove", onCardMove);
+  if (!d.live) return;
+  if (d.gap) d.gap.remove();
+  d.card.classList.remove("floating");
+  d.card.style.cssText = "";
 }
 
 function onCardMove(e) {
   if (!drag) return;
   if (drag.live) { moveFloat(e.clientY); return; }
+  if (!drag.canDrag) return; // touch outside the grip: let the page scroll
   if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
   startFloat(e);
 }
@@ -297,7 +312,7 @@ function onCardDrop(e) {
   document.body.style.cursor = "";
   if (!d) return;
   d.card.removeEventListener("pointermove", onCardMove);
-  if (!d.live) return; // plain click — already selected
+  if (!d.live) { selectFile(d.card.dataset.id); return; } // plain tap = select
   e?.preventDefault?.();
   const { card, gap } = d;
   // settle card into the gap slot
