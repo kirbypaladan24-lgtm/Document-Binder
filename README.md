@@ -1,170 +1,139 @@
-# 📚 Offline PDF Merger and Document Consolidation System
+# Bindery — put your pages in order, bind them into one document
 
-Implements **PDF_Merger_System_Plan (RM)** — merge PDFs in the **exact user-arranged order**.
-The visual list order is the source of truth: PDF 1 → PDF 2 → PDF 3 …
+Drop in PDFs, Word and PowerPoint files. Drag them into sequence —
+what you see is exactly what you get. Flip through every page first,
+inspect the final file fullscreen, then bind and download one finished
+document with the page order double-checked.
 
-## ✨ Features (per RM modules)
+> **The one rule:** if the list shows 1 = A, 2 = C, 3 = B, the output is
+> A-pages, then C-pages, then B-pages. Never reordered behind your back.
 
-- **Module A — File selection:** Add PDFs (multi-select), drag & drop anywhere, `.pdf` only,
-  duplicate detection, metadata (name, pages, size).
-- **Module B — Order manager:** PDF 1 / PDF 2 / … badges, buttery drag-to-reorder
-  (floating ghost, live gliding rows, settle-on-drop), ▲ Move Up / ▼ Move Down /
-  ✕ Remove, Clear All, live renumbering. **Never auto-sorts.**
-- **Module C — Preview:** selected-file first-page thumbnail + first-4-pages strip,
-  page count, size, position.
-- **🔗 Merged-preview window (requested):** right-side tab shows **page-for-page what the
-  merged PDF will contain** — section per file in merge order with output page ranges
-  (e.g. *PDF 1: Chapter_1.pdf → output pages 1–5*), thumbnails, ▼ then ▼ separators,
-  total files/pages summary. Updates live on every reorder/add/remove.
-- **Module D — Merge engine:** sequential append, `pypdf`-based, order-faithful.
-- **Module E — Validation:** missing/corrupt/encrypted/empty checks, output-writable check,
-  refuses to overwrite an input, page-count validation (`sum(inputs) == output`).
-- **Module F — Output:** save dialog (default `merged_document.pdf`), remembers last folder,
-  success dialog with **Open folder / Open PDF**, offline SQLite history + log tab.
+## The two faces
 
-100% **offline/local** — no uploads (RM §7).
+| | Web app (the live product) | Desktop app |
+|---|---|---|
+| Run | `py web/app.py` → `localhost:8000`, or deployed | `python main.py` |
+| Files accepted | PDF, DOCX/DOC, PPTX/PPT (+ ODT, RTF, TXT) | PDF only |
+| Processing | on the server, uploads auto-delete within hours | 100% on your machine, never uploaded |
+| Best for | everyday documents, sharing with anyone via link | sensitive documents that must stay local |
 
-## 🚀 Run
+## What the web app does
+
+- **Queue** — multi-file picker, drag-and-drop anywhere, duplicate
+  detection, per-file page counts and sizes, PDF 1 → 2 → 3… badges.
+- **Buttery reordering** — grab any row (grip on touch screens):
+  a floating ghost follows your cursor while the other rows glide aside,
+  badges renumber live. Arrow buttons included as backup.
+- **Selected-file preview** — big page view, ◀ ▶ pager across *all*
+  pages, numbered filmstrip of every page (lazy-loaded), click any page
+  to view it large.
+- **Bound preview** — every file's every page in merge order, each tagged
+  with its global output number (`p. 7`), sectioned per file with
+  `becomes pages a–b` ranges. Rebuilds live on every reorder.
+- **Final preview** — after binding, flip through renders of the *actual
+  generated file* fullscreen before you trust the download.
+- **Fullscreen lightbox** — click any big page; arrows/← →/Esc to navigate.
+- **Office conversion** — Word/PowerPoint uploads convert server-side
+  (LibreOffice) and merge like natives, badged `converted from DOCX`.
+- **Honest limits, upfront** — the page shows the real caps from the
+  server (50 MB/file, 30 files default) and rejects oversize picks
+  instantly instead of failing mid-upload.
+- **Merge & download** — custom output filename (yours is respected, not
+  overwritten), validated page map (`sum(inputs) == output`), one-click
+  download.
+- **Survives cheap hosting** — sleeps/restarts wipe temp uploads, so the
+  app detects dead sessions, heals itself, and asks you to re-add files;
+  wakes are retried automatically; conversions run one at a time inside
+  memory-safe caps.
+
+## What the desktop app does
+
+Everything above for PDFs, plus: fully offline PySide6 UI with the same
+animated drag-sort, first-page thumbnails, merged-preview window,
+save-dialog with remembered folders, open-folder/open-file on success,
+and a local SQLite merge history. No network, ever.
+
+## Privacy, plainly
+
+- **Web:** files travel to the server, sit in isolated per-session
+  folders, and are swept automatically (default ≤ 6 h, sooner on
+  restarts). No accounts, no tracking, HTTPS in transit. Everyday
+  documents: fine. Passports and medical records: use the desktop app.
+- **Desktop:** nothing leaves the computer. There is no upload code path.
+
+## Run it
 
 ```bat
 cd C:\Users\user\OneDrive\Documents\PDF_Merger
-pip install -r requirements.txt
-python main.py
+pip install -r requirements-web.txt   & REM web + engine
+pip install -r requirements.txt       & REM desktop (adds PySide6)
+py web/app.py      & REM → http://localhost:8000
+python main.py     & REM desktop
 ```
 
-Preview thumbnails need `PyMuPDF` (in requirements). Without it, the app still merges —
-previews show a placeholder message.
+## Deploy it (web)
 
-## 🧪 Tests (RM §11)
+**Render:** push to GitHub → New Web Service → `render.yaml` +
+`Dockerfile` are auto-detected (LibreOffice baked in, health check
+`/health`). Set `SITE_URL=https://your-app.onrender.com` afterwards for
+correct link-preview images. Free tier sleeps when idle (app wakes
+itself) and wipes temp files (app heals itself) — see
+“Free-tier realities” in the table below.
+
+**Elsewhere:** any Docker host (`docker build -t bindery .`),
+Heroku-style via `Procfile`, or VPS via
+`gunicorn web.app:app --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 300`.
+
+| Var | Default | Meaning |
+|---|---|---|
+| `MAX_FILES` | 30 | files per session |
+| `MAX_FILE_MB` | 50 | per-file cap (sized for 512 MB free boxes) |
+| `SESSION_MAX_MB` | 200 | total quota per session |
+| `SESSION_TTL_HOURS` | 6 | uploads auto-deleted after this |
+| `WEB_DATA_DIR` | `web/data` | temp sessions live here |
+| `PORT` | 8000 | listen port |
+| `SITE_URL` | (empty) | production URL, for absolute preview-card image URLs |
+| `LIBREOFFICE_BIN` | (auto) | override path to `soffice` |
+| `OFFICE_CONVERT_TIMEOUT` | 120 | seconds per Office→PDF conversion |
+
+Office conversion needs LibreOffice *where the server runs*: automatic
+in Docker/Render, `apt install libreoffice-writer libreoffice-impress`
+on bare Linux, install-once on Windows (auto-detected). Without it,
+Office uploads are politely refused and PDFs keep working.
+
+## Project map
+
+```
+PDF_Merger/
+  main.py                  ← desktop entry
+  web/
+    app.py                 ← Flask: sessions, upload, merge, preview, download, diag
+    session_store.py       ← isolated temp sessions + expiry sweep
+    static/                ← index.html, styles.css, app.js (vanilla, no build, no CDN)
+                            favicon.svg/png, apple-touch-icon.png, cover.png,
+                            google*.html (Search Console)
+  src/
+    models.py              ← PDFItem (position = merge order)
+    merge_engine.py        ← sequential append + page-count validation
+    validator.py           ← corrupt/encrypted/missing/empty checks
+    office_convert.py      ← optional LibreOffice DOC/DOCX/PPTX → PDF
+    preview_renderer.py    ← PyMuPDF page thumbnails
+    history_store.py       ← desktop SQLite log
+    ui/                    ← desktop: main_window, dragsort (FLIP animations), styles
+  tests/                   ← merge order, dragsort mechanics, ghost-leak
+                            regression, web API, office fallback, limits,
+                            branding assets
+  Dockerfile / render.yaml / Procfile / requirements-web.txt / .gitignore
+```
+
+## Tests
 
 ```bat
 python -m pytest tests/ -v
 ```
 
-Covers: normal merge, reordered merge (order = truth), remove-middle renumbering.
-
-## 📁 Structure
-
-```
-PDF_Merger/
-  main.py                  ← entry point
-  requirements.txt         ← PySide6, pypdf, PyMuPDF
-  src/
-    models.py              ← PDFItem (position = merge order)
-    validator.py           ← Module E
-    merge_engine.py        ← Module D (+ §10 validation)
-    preview_renderer.py    ← PyMuPDF thumbnails
-    history_store.py       ← offline SQLite log
-    ui/
-      main_window.py       ← beautiful UI + merged preview
-      styles.py            ← dark violet/cyan theme
-  tests/
-    test_merge_order.py    ← RM §11 TEST 01/02/04
-```
-
-## 📏 The one rule (RM §13)
-
-> If the list shows PDF 1 = A, PDF 2 = C, PDF 3 = B → output is A-pages, then C-pages,
-> then B-pages. Never reorder automatically.
-
----
-
-# 🌐 Web version (deployable)
-
-Same merge engine, browser UI — no install for your users. Dependency-free
-vanilla frontend (same dark theme, buttery pointer drag-sort with live
-gliding rows, selected-file + merged preview tabs, validated page-map result).
-
-```
-PDF_Merger/
-  web/
-    app.py               ← Flask service (sessions, upload, merge, preview, download)
-    session_store.py     ← isolated temp session folders + auto-cleanup
-    static/              ← index.html, styles.css, app.js (no build step, no CDN)
-```
-
-## Run locally
-
-```bat
-cd C:\Users\user\OneDrive\Documents\PDF_Merger
-pip install -r requirements-web.txt
-python web/app.py
-REM → http://localhost:8000
-```
-
-## Deploy
-
-**Render (easiest):** push this folder to GitHub → New Web Service → it picks up
-`render.yaml` + `Dockerfile` automatically. Health check: `/health`.
-
-**Railway / Fly.io / any Docker host:** `docker build -t pdf-merger .`
-then run with `-p 8000:8000 -v pdfdata:/data`.
-
-**Heroku-style (Procfile):** needs Python buildpack +
-`pip install -r requirements-web.txt`, then the Procfile's
-`gunicorn web.app:app` command.
-
-**VPS:** `gunicorn web.app:app --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 300`
-behind nginx/Caddy for HTTPS.
-
-## Limits & privacy (env vars)
-
-| Var | Default | Meaning |
-|---|---|---|
-| `MAX_FILES` | 30 | files per session |
-| `MAX_FILE_MB` | 50 | per-file size cap (sized for 512MB free boxes) |
-| `SESSION_MAX_MB` | 200 | total quota per session |
-| `SESSION_TTL_HOURS` | 6 | uploads auto-deleted after this |
-| `WEB_DATA_DIR` | `web/data` | where temp sessions live |
-| `PORT` | 8000 | listen port |
-| `SITE_URL` | (empty) | production URL, e.g. `https://your-app.onrender.com` — makes link previews (tab icon, social cards) use absolute image URLs |
-
-### Free-tier realities (read this before blaming the app)
-
-- **Sessions evaporate on sleep/restart/redeploy.** Free hosts wipe temp
-  storage, so an open page can lose its uploads mid-use. The frontend
-  detects this, grabs a fresh session, and asks you to re-add files —
-  no manual reload needed. Need persistence? Attach a paid disk and point
-  `WEB_DATA_DIR` at it.
-- **First visit after idle wakes slowly.** The app retries automatically
-  (“Waking the server…”) for ~a minute before giving up.
-- **Conversions run one at a time** with a single server worker, keeping
-  memory inside 512MB. Big files beyond the caps above are rejected with
-  a plain message, not a crash.
-
-Brand assets live in `web/static/`: `favicon.svg`, `favicon.png`,
-`apple-touch-icon.png`, `cover.png` (social preview).
-
-### Office files — Word & PowerPoint
-
-The web app also accepts **.docx, .doc, .pptx** (plus .ppt, .odt, .odp,
-.rtf, .txt). Office uploads are converted to PDF on the server, then
-merge exactly like PDFs — converted cards are badged
-(“converted from DOCX”) and keep their original filename in the page map.
-
-Conversion needs **LibreOffice** on the server:
-
-| Where | What to do |
-|---|---|
-| Docker / Render | Nothing — the `Dockerfile` installs it automatically |
-| Your PC (Windows) | Install LibreOffice once (auto-detected, incl. `LIBREOFFICE_BIN` override) |
-| Other Linux host | `apt install libreoffice-writer libreoffice-impress` |
-
-Without LibreOffice, office uploads are politely rejected and PDFs keep
-working — nothing crashes. (`src/office_convert.py` is shared, so the
-desktop app can grow the same trick later.)
-
-⚠️ Unlike the desktop app (100% local), a **deployed** service receives users'
-files on the server. Uploads sit in isolated session folders (strict
-hex ids — no path traversal), are swept after the TTL, and are never
-shared. Say so on your site; for sensitive documents, point people at
-the desktop app (`python main.py`) instead.
-
-## Web tests
-
-```bat
-python -m pytest tests/test_web.py -v
-```
-
-Covers: ordered upload, custom-order merge (C,A,B → pages 1 / 2–3 / 4–6),
-download byte validation, thumbnails, and rejection of junk/unknown ids.
+16 tests: order-is-truth merging, remove-middle renumbering, animated
+list mechanics, rapid-redrag ghost-leak regression, full web flow
+(upload → custom-order merge → byte-checked download → thumbnails),
+Office graceful fallback, session limits reporting, favicon/cover/
+verification-file serving, token-based final previews.
